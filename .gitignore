@@ -1,0 +1,22 @@
+# 敏感配置（本地凭据）
+src/main/resources/application.yml
+
+# 构建产物
+target/
+
+# IDE
+.idea/
+*.iml
+*.ipr
+*.iws
+.DS_Store
+
+# 运行时工作目录
+workspace/
+
+# 日志
+*.log
+logs/
+
+# Maven wrapper（非必须）
+!.mvn/wrapper/maven-wrapper.jar

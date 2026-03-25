@@ -1,0 +1,865 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OpenManus 控制台</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface2: #22263a;
+      --border: #2e3350;
+      --accent: #6c8aff;
+      --accent2: #a5b4fc;
+      --text: #e2e8f0;
+      --text-dim: #8892b0;
+      --success: #34d399;
+      --error: #f87171;
+      --warning: #fbbf24;
+      --info: #60a5fa;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* Header */
+    header {
+      background: var(--surface);
+      border-bottom: 1px solid var(--border);
+      padding: 0 24px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    header .logo {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    header h1 {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text);
+    }
+
+    .header-right {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--success);
+    }
+
+    .status-dot.offline { background: var(--error); }
+    .status-dot.connecting { background: var(--warning); animation: pulse 1s infinite; }
+
+    @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.4; } }
+
+    /* Main Layout */
+    main {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* Left Panel */
+    .panel-left {
+      width: 380px;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .panel-section {
+      padding: 16px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .panel-section h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+      margin-bottom: 12px;
+    }
+
+    .input-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .input-row {
+      display: flex;
+      gap: 8px;
+    }
+
+    input, textarea, select {
+      background: var(--surface2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      font-size: 13px;
+      padding: 8px 12px;
+      width: 100%;
+      font-family: inherit;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, textarea:focus, select:focus {
+      outline: none;
+      border-color: var(--accent);
+    }
+
+    input::placeholder, textarea::placeholder {
+      color: var(--text-dim);
+    }
+
+    textarea {
+      resize: none;
+      height: 80px;
+      line-height: 1.5;
+    }
+
+    .btn {
+      padding: 8px 16px;
+      border-radius: 8px;
+      border: none;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-family: inherit;
+      white-space: nowrap;
+    }
+
+    .btn-primary {
+      background: var(--accent);
+      color: #fff;
+    }
+
+    .btn-primary:hover { background: #5a7ae0; }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--text-dim);
+      border: 1px solid var(--border);
+    }
+
+    .btn-ghost:hover { background: var(--surface2); color: var(--text); }
+
+    .btn-danger {
+      background: rgba(248, 113, 113, 0.15);
+      color: var(--error);
+      border: 1px solid rgba(248, 113, 113, 0.3);
+    }
+
+    .btn-danger:hover { background: rgba(248, 113, 113, 0.25); }
+
+    .btn-sm { padding: 5px 10px; font-size: 12px; }
+
+    /* Task Info */
+    .task-info {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .info-card {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+    }
+
+    .info-card .label {
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+    }
+
+    .info-card .value {
+      font-size: 13px;
+      font-weight: 500;
+      font-family: 'Fira Code', monospace;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 3px 8px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 500;
+    }
+
+    .status-badge.RUNNING { background: rgba(96, 165, 250, 0.15); color: var(--info); }
+    .status-badge.COMPLETED { background: rgba(52, 211, 153, 0.15); color: var(--success); }
+    .status-badge.ERROR { background: rgba(248, 113, 113, 0.15); color: var(--error); }
+    .status-badge.IDLE { background: rgba(136, 146, 176, 0.15); color: var(--text-dim); }
+
+    /* Session List */
+    .sessions-panel {
+      flex: 1;
+      overflow-y: auto;
+      padding: 12px;
+    }
+
+    .sessions-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 4px 8px;
+    }
+
+    .sessions-header h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+
+    .session-item {
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .session-item:hover { border-color: var(--border); }
+    .session-item.active { border-color: var(--accent); background: rgba(108, 138, 255, 0.08); }
+
+    .session-item .session-id {
+      font-size: 12px;
+      font-family: 'Fira Code', monospace;
+      color: var(--accent2);
+      margin-bottom: 4px;
+    }
+
+    .session-item .session-meta {
+      font-size: 11px;
+      color: var(--text-dim);
+      display: flex;
+      gap: 8px;
+    }
+
+    .session-actions {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+
+    /* Right Panel - Log */
+    .panel-right {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .log-header {
+      padding: 12px 16px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-shrink: 0;
+    }
+
+    .log-header h3 {
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-dim);
+    }
+
+    .log-actions { display: flex; gap: 6px; }
+
+    .log-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      font-family: 'Fira Code', 'SF Mono', Consolas, monospace;
+      font-size: 12px;
+      line-height: 1.7;
+    }
+
+    .log-entry {
+      padding: 3px 0;
+      border-bottom: 1px solid rgba(46, 51, 80, 0.4);
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+
+    .log-entry .prefix {
+      color: var(--text-dim);
+      margin-right: 8px;
+    }
+
+    .log-entry.think { color: var(--accent2); }
+    .log-entry.think .prefix { color: var(--accent); }
+    .log-entry.action { color: var(--info); }
+    .log-entry.action .prefix { color: var(--info); }
+    .log-entry.observation { color: var(--success); }
+    .log-entry.observation .prefix { color: var(--success); }
+    .log-entry.result { color: var(--success); font-weight: 500; }
+    .log-entry.result .prefix { color: var(--success); }
+    .log-entry.error { color: var(--error); }
+    .log-entry.error .prefix { color: var(--error); }
+    .log-entry.info { color: var(--text-dim); }
+    .log-entry.system { color: var(--warning); }
+    .log-entry.system .prefix { color: var(--warning); }
+    .log-entry.result-final {
+      color: var(--text);
+      background: var(--surface2);
+      border-radius: 8px;
+      padding: 12px;
+      margin: 8px 0;
+      border-left: 3px solid var(--success);
+      white-space: pre-wrap;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      line-height: 1.6;
+    }
+
+    .log-empty {
+      color: var(--text-dim);
+      font-style: italic;
+      text-align: center;
+      padding-top: 40px;
+      font-family: -apple-system, sans-serif;
+    }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 1000;
+    }
+
+    .toast {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 10px 16px;
+      font-size: 13px;
+      animation: slideIn 0.3s ease;
+      max-width: 320px;
+    }
+
+    .toast.error { border-color: rgba(248, 113, 113, 0.4); }
+    .toast.success { border-color: rgba(52, 211, 153, 0.4); }
+
+    @keyframes slideIn { from { opacity: 0; transform: translateX(20px); } to { opacity: 1; transform: translateX(0); } }
+
+    /* Spinner */
+    .spinner {
+      width: 12px;
+      height: 12px;
+      border: 2px solid rgba(255,255,255,0.3);
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin 0.6s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .steps-bar {
+      width: 100%;
+      height: 3px;
+      background: var(--surface2);
+      border-radius: 2px;
+      margin-top: 8px;
+      overflow: hidden;
+    }
+
+    .steps-bar-fill {
+      height: 100%;
+      background: var(--accent);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">🤖</div>
+  <h1>OpenManus 控制台</h1>
+  <div class="header-right">
+    <span style="font-size:12px;color:var(--text-dim)" id="apiStatus">
+      <span class="status-dot" id="statusDot"></span>
+      <span id="statusText">就绪</span>
+    </span>
+  </div>
+</header>
+
+<main>
+  <!-- Left Panel -->
+  <div class="panel-left">
+
+    <!-- 任务提交 -->
+    <div class="panel-section">
+      <h3>提交任务</h3>
+      <div class="input-group">
+        <textarea id="requestInput" placeholder="输入你的任务描述，例如：帮我搜索一下最新的人工智能发展趋势"></textarea>
+        <div class="input-row">
+          <input id="sessionIdInput" placeholder="会话 ID（留空自动创建）" style="flex:1">
+          <button class="btn btn-primary" id="runBtn" onclick="submitTask()">
+            <span id="runBtnContent">▶ 运行</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 当前任务状态 -->
+    <div class="panel-section">
+      <h3>当前任务</h3>
+      <div class="task-info">
+        <div class="info-card">
+          <div class="label">任务 ID</div>
+          <div class="value" id="curTaskId">—</div>
+        </div>
+        <div class="info-card">
+          <div class="label">状态</div>
+          <div class="value"><span class="status-badge IDLE" id="curStatus">IDLE</span></div>
+        </div>
+        <div class="info-card">
+          <div class="label">会话 ID</div>
+          <div class="value" id="curSessionId">—</div>
+        </div>
+        <div class="info-card">
+          <div class="label">已执行步数</div>
+          <div class="value" id="curSteps">—</div>
+        </div>
+      </div>
+      <div id="stepsBarContainer" style="display:none;margin-top:10px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-dim);margin-bottom:4px;">
+          <span>执行进度</span><span id="stepsText">0 / 30</span>
+        </div>
+        <div class="steps-bar">
+          <div class="steps-bar-fill" id="stepsBarFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 会话管理 -->
+    <div class="sessions-panel" id="sessionsPanel">
+      <div class="sessions-header">
+        <h3>最近会话</h3>
+        <button class="btn btn-ghost btn-sm" onclick="loadSessions()">↻</button>
+      </div>
+      <div id="sessionsList">
+        <div style="color:var(--text-dim);font-size:12px;text-align:center;padding:20px 0;">暂无会话记录</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Panel - Log -->
+  <div class="panel-right">
+    <div class="log-header">
+      <h3>执行日志</h3>
+      <div class="log-actions">
+        <button class="btn btn-ghost btn-sm" onclick="copyResult()">📋 复制结果</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearLog()">🗑 清空</button>
+      </div>
+    </div>
+    <div class="log-body" id="logBody">
+      <div class="log-empty" id="logEmpty">提交任务后，日志将实时显示在这里</div>
+    </div>
+  </div>
+</main>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+  const MAX_STEPS = 30;
+  const API_BASE = '/api/agent';
+  let currentTaskId = null;
+  let currentSessionId = null;
+  let isRunning = false;
+  let sseSource = null;
+  let pollInterval = null;
+  let finalResult = '';
+  let sessions = [];
+
+  // ── Toast ──────────────────────────────────────────────────────────────────
+  function toast(msg, type = 'info') {
+    const c = document.getElementById('toastContainer');
+    const t = document.createElement('div');
+    t.className = `toast ${type}`;
+    t.textContent = msg;
+    c.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  // ── Log ────────────────────────────────────────────────────────────────────
+  function appendLog(text, type = 'info') {
+    const body = document.getElementById('logBody');
+    const empty = document.getElementById('logEmpty');
+    if (empty) empty.remove();
+
+    if (type === 'result-final') {
+      finalResult = text;
+      const div = document.createElement('div');
+      div.className = 'log-entry result-final';
+      div.textContent = text;
+      body.appendChild(div);
+    } else {
+      const div = document.createElement('div');
+      div.className = `log-entry ${type}`;
+      const prefix = { think:'🤔', action:'⚡', observation:'📡', result:'✅', error:'❌', system:'ℹ️', info:'' }[type] || '  ';
+      div.innerHTML = prefix ? `<span class="prefix">${prefix}</span>${escapeHtml(text)}` : escapeHtml(text);
+      body.appendChild(div);
+    }
+    body.scrollTop = body.scrollHeight;
+  }
+
+  function clearLog() {
+    document.getElementById('logBody').innerHTML = '<div class="log-empty" id="logEmpty">提交任务后，日志将实时显示在这里</div>';
+    finalResult = '';
+  }
+
+  function escapeHtml(s) {
+    return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function copyResult() {
+    if (!finalResult) { toast('暂无结果可复制', 'error'); return; }
+    navigator.clipboard.writeText(finalResult).then(() => toast('已复制到剪贴板', 'success'));
+  }
+
+  // ── UI State ───────────────────────────────────────────────────────────────
+  function setRunning(running) {
+    isRunning = running;
+    const btn = document.getElementById('runBtn');
+    const content = document.getElementById('runBtnContent');
+    const input = document.getElementById('requestInput');
+    btn.disabled = running;
+    if (running) {
+      content.innerHTML = '<span class="spinner"></span> 运行中…';
+    } else {
+      content.innerHTML = '▶ 运行';
+    }
+    input.disabled = running;
+  }
+
+  function updateTaskUI(taskId, sessionId, status, steps) {
+    document.getElementById('curTaskId').textContent = taskId || '—';
+    document.getElementById('curSessionId').textContent = sessionId || '—';
+    const badge = document.getElementById('curStatus');
+    badge.className = `status-badge ${status || 'IDLE'}`;
+    badge.textContent = { RUNNING:'进行中', COMPLETED:'已完成', ERROR:'出错', IDLE:'空闲' }[status] || status;
+    document.getElementById('curSteps').textContent = steps ?? '—';
+
+    const bar = document.getElementById('stepsBarContainer');
+    if (status === 'RUNNING') {
+      bar.style.display = 'block';
+      const pct = Math.min(100, (steps / MAX_STEPS) * 100);
+      document.getElementById('stepsBarFill').style.width = pct + '%';
+      document.getElementById('stepsText').textContent = `${steps} / ${MAX_STEPS}`;
+    } else {
+      bar.style.display = 'none';
+    }
+
+    const dot = document.getElementById('statusDot');
+    const text = document.getElementById('statusText');
+    if (status === 'RUNNING') {
+      dot.className = 'status-dot connecting';
+      text.textContent = '运行中';
+    } else if (status === 'COMPLETED') {
+      dot.className = 'status-dot';
+      text.textContent = '已完成';
+    } else if (status === 'ERROR') {
+      dot.className = 'status-dot offline';
+      text.textContent = '出错';
+    } else {
+      dot.className = 'status-dot';
+      text.textContent = '就绪';
+    }
+  }
+
+  // ── Sessions ────────────────────────────────────────────────────────────────
+  async function loadSessions() {
+    // 从 localStorage 读取最近会话
+    try {
+      const stored = localStorage.getItem('openmanus_sessions');
+      sessions = stored ? JSON.parse(stored) : [];
+    } catch { sessions = []; }
+    renderSessions();
+  }
+
+  function saveSessions() {
+    localStorage.setItem('openmanus_sessions', JSON.stringify(sessions.slice(0, 50)));
+  }
+
+  function addSession(sessionId, result, status) {
+    sessions.unshift({ id: sessionId, result: result ? result.substring(0, 80) : '', status, time: Date.now() });
+    sessions = sessions.slice(0, 50);
+    saveSessions();
+    renderSessions();
+  }
+
+  function renderSessions() {
+    const el = document.getElementById('sessionsList');
+    if (!sessions.length) {
+      el.innerHTML = '<div style="color:var(--text-dim);font-size:12px;text-align:center;padding:20px 0;">暂无会话记录</div>';
+      return;
+    }
+    el.innerHTML = sessions.map(s => `
+      <div class="session-item ${s.id === currentSessionId ? 'active' : ''}" onclick="selectSession('${s.id}')">
+        <div class="session-id">${s.id}</div>
+        <div class="session-meta">
+          <span>${formatTime(s.time)}</span>
+          <span>${s.result || '—'}</span>
+        </div>
+        <div class="session-actions">
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();loadSessionHistory('${s.id}')">历史</button>
+          <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();loadSessionResult('${s.id}')">结果</button>
+          <button class="btn btn-danger btn-sm" onclick="event.stopPropagation();deleteSession('${s.id}')">删除</button>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function selectSession(id) {
+    currentSessionId = id;
+    document.getElementById('sessionIdInput').value = id;
+    renderSessions();
+  }
+
+  async function loadSessionHistory(sessionId) {
+    clearLog();
+    appendLog(`加载会话 ${sessionId} 的历史运行记录…`, 'system');
+    try {
+      const resp = await fetch(`${API_BASE}/history/${sessionId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      if (Array.isArray(data) && data.length) {
+        data.forEach((run, i) => {
+          appendLog(`--- 运行 #${data.length - i} | task: ${run.taskId} | 状态: ${run.status} | 步数: ${run.stepsTaken} ---`, 'system');
+          if (run.request) appendLog(`请求: ${run.request}`, 'info');
+          if (run.result) appendLog(`结果: ${run.result}`, 'result');
+        });
+      } else {
+        appendLog('暂无历史记录', 'info');
+      }
+    } catch (e) {
+      appendLog(`加载失败: ${e.message}`, 'error');
+    }
+  }
+
+  async function loadSessionResult(sessionId) {
+    clearLog();
+    appendLog(`加载会话 ${sessionId} 的结果…`, 'system');
+    try {
+      const resp = await fetch(`${API_BASE}/session/${sessionId}`);
+      if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+      const data = await resp.json();
+      appendLog(data.result || '无结果', 'result-final');
+    } catch (e) {
+      appendLog(`加载失败: ${e.message}`, 'error');
+    }
+  }
+
+  function deleteSession(id) {
+    sessions = sessions.filter(s => s.id !== id);
+    if (currentSessionId === id) currentSessionId = null;
+    saveSessions();
+    renderSessions();
+    toast('会话已删除', 'success');
+  }
+
+  function formatTime(ts) {
+    const d = new Date(ts);
+    return `${d.getMonth()+1}/${d.getDate()} ${d.getHours().toString().padStart(2,'0')}:${d.getMinutes().toString().padStart(2,'0')}`;
+  }
+
+  // ── Task Submission ─────────────────────────────────────────────────────────
+  async function submitTask() {
+    const request = document.getElementById('requestInput').value.trim();
+    if (!request) { toast('请输入任务描述', 'error'); return; }
+
+    let sessionId = document.getElementById('sessionIdInput').value.trim();
+
+    // 关闭已有 SSE
+    if (sseSource) { sseSource.close(); sseSource = null; }
+    if (pollInterval) { clearInterval(pollInterval); pollInterval = null; }
+
+    clearLog();
+    setRunning(true);
+    currentSessionId = null;
+    currentTaskId = null;
+    updateTaskUI(null, null, 'RUNNING', 0);
+    appendLog('正在提交任务…', 'system');
+
+    try {
+      const body = { request };
+      if (sessionId) body.session_id = sessionId;
+
+      const resp = await fetch(`${API_BASE}/run`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      if (!resp.ok) {
+        const err = await resp.text();
+        throw new Error(`HTTP ${resp.status}: ${err}`);
+      }
+
+      const data = await resp.json();
+      currentTaskId = data.task_id;
+      currentSessionId = data.session_id;
+      sessionId = data.session_id;
+
+      document.getElementById('sessionIdInput').value = sessionId;
+      appendLog(`任务已创建 | task_id: ${currentTaskId} | session_id: ${sessionId}`, 'system');
+      updateTaskUI(currentTaskId, currentSessionId, 'RUNNING', 0);
+
+      // 连接 SSE
+      connectSSE(data.stream_url || `${API_BASE}/stream/${currentTaskId}`);
+      startPolling(data.status_url || `${API_BASE}/task/${currentTaskId}/status`);
+
+    } catch (e) {
+      appendLog(`提交失败: ${e.message}`, 'error');
+      setRunning(false);
+      updateTaskUI(null, null, 'ERROR', 0);
+    }
+  }
+
+  // ── SSE ─────────────────────────────────────────────────────────────────────
+  function connectSSE(url) {
+    appendLog('连接事件流…', 'info');
+    sseSource = new EventSource(url);
+
+    sseSource.onopen = () => appendLog('事件流已连接', 'info');
+
+    sseSource.onerror = (e) => {
+      appendLog('事件流连接断开', 'error');
+      sseSource.close();
+      sseSource = null;
+    };
+
+    sseSource.addEventListener('step', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        updateTaskUI(currentTaskId, currentSessionId, 'RUNNING', d.step);
+        if (d.content) appendLog(d.content, 'info');
+      } catch {}
+    });
+
+    sseSource.addEventListener('complete', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        appendLog('任务完成', 'system');
+        if (d.result) appendLog(d.result, 'result-final');
+      } catch {}
+    });
+
+    sseSource.addEventListener('error', (e) => {
+      try {
+        const d = JSON.parse(e.data);
+        appendLog(`出错: ${d.message}`, 'error');
+        updateTaskUI(currentTaskId, currentSessionId, 'ERROR', 0);
+        setRunning(false);
+        addSession(currentSessionId, '执行出错', 'ERROR');
+      } catch {}
+    });
+
+    // 通用 message 事件兜底
+    sseSource.onmessage = (e) => {
+      if (!e.data || e.data === ': ping') return;
+      try {
+        const d = JSON.parse(e.data);
+        if (d.type === 'step') {
+          updateTaskUI(currentTaskId, currentSessionId, 'RUNNING', d.step);
+          if (d.content) appendLog(d.content, 'info');
+        } else if (d.type === 'complete') {
+          appendLog('任务完成', 'system');
+          if (d.result) appendLog(d.result, 'result-final');
+        } else if (d.type === 'error') {
+          appendLog(`出错: ${d.message}`, 'error');
+        }
+      } catch {}
+    };
+  }
+
+  // ── Polling ─────────────────────────────────────────────────────────────────
+  function startPolling(url) {
+    if (pollInterval) clearInterval(pollInterval);
+    pollInterval = setInterval(async () => {
+      if (!currentTaskId) return;
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) return;
+        const data = await resp.json();
+        updateTaskUI(data.task_id, data.session_id, data.status, data.steps_taken);
+        if (data.status === 'COMPLETED' || data.status === 'ERROR') {
+          clearInterval(pollInterval);
+          pollInterval = null;
+          setRunning(false);
+          if (data.status === 'COMPLETED' && data.result) {
+            appendLog(data.result, 'result-final');
+          }
+          addSession(currentSessionId, data.result, data.status);
+          // 关闭 SSE
+          if (sseSource) { sseSource.close(); sseSource = null; }
+        }
+      } catch {}
+    }, 2000);
+  }
+
+  // ── Init ─────────────────────────────────────────────────────────────────────
+  loadSessions();
+</script>
+</body>
+</html>
