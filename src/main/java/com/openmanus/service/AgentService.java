@@ -30,4 +30,9 @@ public interface AgentService {
     List<AgentRun> getHistory(String sessionId);
 
     record TaskSubmitResponse(String taskId, String sessionId) {}
+
+    /**
+     * 提交规划模式任务（PlannerAgent + ExecutorAgent 两阶段执行）
+     */
+    TaskSubmitResponse submitPlanningTask(String request, String sessionId);
 }

@@ -1,6 +1,8 @@
 package com.openmanus.config;
 
+import com.openmanus.agent.ExecutorAgent;
 import com.openmanus.agent.ManusAgent;
+import com.openmanus.agent.PlannerAgent;
 import com.openmanus.tool.*;
 import dev.langchain4j.model.chat.ChatModel;
 import dev.langchain4j.model.openai.OpenAiChatModel;
@@ -119,5 +121,55 @@ public class AppConfig {
         executor.setThreadNamePrefix("agent-task-");
         executor.initialize();
         return executor;
+    }
+
+    // ==================== PlanningFlow 相关 Bean ====================
+
+    private static final String PLANNER_SYSTEM_PROMPT = """
+            You are a task planning assistant. Your job is to analyze the user's request and create a clear, structured execution plan.
+
+            For each step in the plan:
+            - Provide a concise but specific description of what needs to be done
+            - Assign an appropriate tool from: web_search, bash, str_replace_editor, file_operator, terminate
+            - Steps should be ordered logically (prerequisites before dependents)
+            - Keep each step focused on one concrete action
+
+            IMPORTANT: Respond ONLY with valid JSON in this exact format, no other text:
+            {
+              "title": "Brief plan title (max 50 chars)",
+              "steps": [
+                {"index": 0, "description": "Step description", "tool_name": "tool_name"},
+                {"index": 1, "description": "Step description", "tool_name": "tool_name"}
+              ]
+            }
+
+            Requirements:
+            - Always include a terminate step as the last step
+            - Maximum 8 steps
+            - Each step description must be clear enough for an executor to understand without additional context
+            """;
+
+    /**
+     * PlannerAgent Bean（prototype scope）
+     * 负责分析请求并生成结构化执行计划
+     */
+    @Bean
+    @Scope("prototype")
+    public PlannerAgent plannerAgent(ChatModel chatModel,
+                                    ToolCollection toolCollection) {
+        return new PlannerAgent(chatModel, toolCollection);
+    }
+
+    /**
+     * ExecutorAgent Bean（prototype scope）
+     * 负责按计划步骤逐步执行任务
+     */
+    @Bean
+    @Scope("prototype")
+    public ExecutorAgent executorAgent(ChatModel chatModel,
+                                       ToolCollection toolCollection) {
+        // ExecutorAgent 不需要额外的 system prompt，通过 step request 注入上下文
+        return new ExecutorAgent(chatModel, toolCollection,
+                /* systemPrompt */ "", maxSteps, maxObserve);
     }
 }

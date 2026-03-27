@@ -70,6 +70,32 @@ public class SseEmitterService {
         publish(taskId, Map.of("type", "step", "step", step, "content", content));
     }
 
+    /**
+     * 直接推送自定义事件（供 PlanningFlow 使用）
+     */
+    public void publish(String taskId, Object event) {
+        String json;
+        try {
+            json = objectMapper.writeValueAsString(event);
+        } catch (JsonProcessingException e) {
+            json = "{\"type\":\"error\",\"message\":\"serialization failed\"}";
+        }
+
+        eventStore.computeIfAbsent(taskId, k -> new CopyOnWriteArrayList<>()).add(json);
+
+        CopyOnWriteArrayList<SseEmitter> taskEmitters =
+                emitters.getOrDefault(taskId, new CopyOnWriteArrayList<>());
+        List<SseEmitter> dead = new java.util.ArrayList<>();
+        for (SseEmitter emitter : taskEmitters) {
+            try {
+                emitter.send(SseEmitter.event().data(json));
+            } catch (IOException e) {
+                dead.add(emitter);
+            }
+        }
+        taskEmitters.removeAll(dead);
+    }
+
     /** 推送完成事件 */
     public void sendComplete(String taskId, String result) {
         publish(taskId, Map.of("type", "complete", "result", result));
@@ -83,31 +109,6 @@ public class SseEmitterService {
     }
 
     // ===== 内部方法 =====
-
-    private void publish(String taskId, Object data) {
-        String json;
-        try {
-            json = objectMapper.writeValueAsString(data);
-        } catch (JsonProcessingException e) {
-            json = "{\"type\":\"error\",\"message\":\"serialization failed\"}";
-        }
-
-        // 存储事件供晚连接重放
-        eventStore.computeIfAbsent(taskId, k -> new CopyOnWriteArrayList<>()).add(json);
-
-        // 推送给所有活跃连接
-        CopyOnWriteArrayList<SseEmitter> taskEmitters =
-                emitters.getOrDefault(taskId, new CopyOnWriteArrayList<>());
-        List<SseEmitter> dead = new java.util.ArrayList<>();
-        for (SseEmitter emitter : taskEmitters) {
-            try {
-                emitter.send(SseEmitter.event().data(json));
-            } catch (IOException e) {
-                dead.add(emitter);
-            }
-        }
-        taskEmitters.removeAll(dead);
-    }
 
     private void closeEmitters(String taskId) {
         CopyOnWriteArrayList<SseEmitter> taskEmitters = emitters.remove(taskId);

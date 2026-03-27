@@ -1,7 +1,10 @@
 package com.openmanus.service;
 
+import com.openmanus.agent.ExecutorAgent;
 import com.openmanus.agent.ManusAgent;
+import com.openmanus.agent.PlannerAgent;
 import com.openmanus.entity.AgentRun;
+import com.openmanus.flow.PlanningFlow;
 import com.openmanus.mapper.AgentRunMapper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -110,6 +113,76 @@ public class AgentServiceImpl implements AgentService {
             run.setStatus("ERROR");
             run.setCompletedAt(LocalDateTime.now());
             agentRunMapper.updateById(run);
+            sseEmitterService.sendError(taskId, e.getMessage());
+        }
+    }
+
+    @Override
+    public TaskSubmitResponse submitPlanningTask(String request, String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            sessionId = UUID.randomUUID().toString();
+        }
+        String taskId = UUID.randomUUID().toString();
+        String finalSessionId = sessionId;
+
+        AgentRun run = new AgentRun();
+        run.setTaskId(taskId);
+        run.setSessionId(finalSessionId);
+        run.setRequest(request);
+        run.setStatus("RUNNING");
+        run.setStepsTaken(0);
+        agentRunMapper.insert(run);
+
+        log.info("Planning task submitted | taskId={} | session={}", taskId, finalSessionId);
+
+        agentTaskExecutor.submit(() ->
+                executePlanningTask(taskId, run.getId(), request, finalSessionId));
+
+        return new TaskSubmitResponse(taskId, finalSessionId);
+    }
+
+    private void executePlanningTask(String taskId, Long runId, String request, String sessionId) {
+        log.info("Planning task started | taskId={} | session={}", taskId, sessionId);
+
+        // 获取 prototype-scoped 的 Agent 实例
+        PlannerAgent plannerAgent = beanFactory.getBean(PlannerAgent.class);
+        ExecutorAgent executorAgent = beanFactory.getBean(ExecutorAgent.class);
+
+        // 构建 PlanningFlow（每次执行创建新实例，保持状态隔离）
+        PlanningFlow flow = PlanningFlow.builder()
+                .plannerAgent(plannerAgent)
+                .executorAgent(executorAgent)
+                .sseEmitterService(sseEmitterService)
+                .agentRunMapper(agentRunMapper)
+                .build();
+        flow.setTaskId(taskId);
+        flow.setRunId(runId);
+        flow.setSessionId(sessionId);
+
+        try {
+            String result = flow.execute(request);
+
+            AgentRun run = agentRunMapper.selectById(runId);
+            if (run != null) {
+                run.setResult(result);
+                run.setStatus("COMPLETED");
+                run.setCompletedAt(LocalDateTime.now());
+                agentRunMapper.updateById(run);
+            }
+
+            redisTemplate.opsForValue().set(REDIS_KEY_PREFIX + sessionId, result, SESSION_TTL);
+
+            log.info("Planning task completed | taskId={}", taskId);
+
+        } catch (Exception e) {
+            log.error("Planning task failed | taskId={} | error={}", taskId, e.getMessage(), e);
+            AgentRun run = agentRunMapper.selectById(runId);
+            if (run != null) {
+                run.setResult("Planning failed: " + e.getMessage());
+                run.setStatus("ERROR");
+                run.setCompletedAt(LocalDateTime.now());
+                agentRunMapper.updateById(run);
+            }
             sseEmitterService.sendError(taskId, e.getMessage());
         }
     }
