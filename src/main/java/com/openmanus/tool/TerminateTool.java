@@ -22,7 +22,7 @@ public class TerminateTool implements BaseTool {
 
     @Override
     public String getDescription() {
-        return "Terminate the agent when the task is complete. Call this with a summary of what was accomplished.";
+        return "Terminate the agent when the task is complete. The message should contain the FINAL RESULT/REPORT content that the user will read directly, NOT a meta-description like 'I have completed...'";
     }
 
     @Override

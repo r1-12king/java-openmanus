@@ -33,6 +33,9 @@ public class ManusAgent extends BaseAgent {
     /** 工具输出最大字符数，超出截断，防止 token 爆炸 */
     private final int maxObserve;
 
+    /** 最终结果，当 terminate 工具被调用时存储纯净的报告内容 */
+    private String finalResult = null;
+
     public ManusAgent(ChatModel model,
                       ToolCollection toolCollection,
                       String systemPrompt,
@@ -42,6 +45,14 @@ public class ManusAgent extends BaseAgent {
         this.model = model;
         this.toolCollection = toolCollection;
         this.maxObserve = maxObserve;
+    }
+
+    /**
+     * 获取最终结果（去掉 terminate 信号的纯净内容）
+     */
+    @Override
+    protected String getFinalResult() {
+        return finalResult;
     }
 
     /**
@@ -76,7 +87,9 @@ public class ManusAgent extends BaseAgent {
             log.info("[{}] No tool calls, finishing. Answer: {}",
                     name, truncate(text, 200));
             state = AgentState.FINISHED;
-            return text != null ? text : "Task completed.";
+            // 存储最终结果
+            finalResult = text != null ? text : "Task completed.";
+            return finalResult;
         }
 
         // ====== ACT ======
@@ -102,10 +115,28 @@ public class ManusAgent extends BaseAgent {
 
             stepResult.append("[").append(toolName).append("] ").append(observation).append("\n");
 
-            // 检测 terminate 信号
+            // 检测 terminate 信号（在 observation 中查找）
             if (observation.contains(TerminateTool.TERMINATE_SIGNAL)) {
                 state = AgentState.FINISHED;
                 log.info("[{}] Terminate signal received, finishing", name);
+                log.info("[{}] observation content (first 200 chars): {}", name,
+                    observation.length() > 200 ? observation.substring(0, 200) + "..." : observation);
+                // 提取纯净的报告内容（去掉 __TERMINATE__: 前缀）
+                int idx = observation.indexOf(TerminateTool.TERMINATE_SIGNAL);
+                log.info("[{}] TERMINATE_SIGNAL index: {}", name, idx);
+                if (idx >= 0) {
+                    finalResult = observation.substring(idx + TerminateTool.TERMINATE_SIGNAL.length()).trim();
+                    log.info("[{}] finalResult after substring (first 100 chars): {}", name,
+                        finalResult.length() > 100 ? finalResult.substring(0, 100) + "..." : finalResult);
+                    // 去掉可能的前缀冒号和空格
+                    if (finalResult.startsWith(":")) {
+                        finalResult = finalResult.substring(1).trim();
+                    }
+                    log.info("[{}] finalResult extracted (first 100 chars): {}", name,
+                        finalResult.length() > 100 ? finalResult.substring(0, 100) + "..." : finalResult);
+                } else {
+                    log.warn("[{}] Could not find TERMINATE_SIGNAL in observation", name);
+                }
             }
         }
 

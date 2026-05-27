@@ -354,11 +354,30 @@
       padding: 12px;
       margin: 8px 0;
       border-left: 3px solid var(--success);
-      white-space: pre-wrap;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       font-size: 13px;
       line-height: 1.6;
     }
+
+    /* Markdown 样式 */
+    .log-entry.result-final h1 { font-size: 1.5em; margin: 0.5em 0; color: var(--text); }
+    .log-entry.result-final h2 { font-size: 1.3em; margin: 0.4em 0; color: var(--text); }
+    .log-entry.result-final h3 { font-size: 1.1em; margin: 0.3em 0; color: var(--text); }
+    .log-entry.result-final h4 { font-size: 1em; margin: 0.3em 0; color: var(--text); font-weight: 600; }
+    .log-entry.result-final h5 { font-size: 0.95em; margin: 0.3em 0; color: var(--text); font-weight: 600; }
+    .log-entry.result-final h6 { font-size: 0.9em; margin: 0.3em 0; color: var(--text-dim); font-weight: 600; }
+    .log-entry.result-final p { margin: 0.5em 0; }
+    .log-entry.result-final ul, .log-entry.result-final ol { margin: 0.5em 0; padding-left: 1.5em; }
+    .log-entry.result-final li { margin: 0.3em 0; }
+    .log-entry.result-final strong { color: var(--accent2); }
+    .log-entry.result-final code { background: var(--bg); padding: 2px 6px; border-radius: 4px; font-family: 'Fira Code', monospace; font-size: 0.9em; }
+    .log-entry.result-final pre { background: var(--bg); padding: 10px; border-radius: 6px; overflow-x: auto; margin: 0.5em 0; }
+    .log-entry.result-final pre code { background: none; padding: 0; }
+    .log-entry.result-final a { color: var(--accent); text-decoration: none; }
+    .log-entry.result-final a:hover { text-decoration: underline; }
+    .log-entry.result-final blockquote { border-left: 3px solid var(--border); padding-left: 12px; margin: 0.5em 0; color: var(--text-dim); }
+    .log-entry.result-final img { max-width: 100%; border-radius: 4px; }
+    .log-entry.result-final hr { border: none; border-top: 1px solid var(--border); margin: 1em 0; }
 
     .log-empty {
       color: var(--text-dim);
@@ -599,6 +618,7 @@
   let finalResult = '';
   let sessions = [];
   let currentMode = 'react';   // 'react' | 'plan'
+  let maxStepSeen = 0;         // 追踪最大步数，避免进度回退
   let planData = null;         // 当前计划数据
   let currentStepIndex = -1;   // 当前执行到的步骤（规划模式）
 
@@ -671,7 +691,8 @@
       finalResult = text;
       const div = document.createElement('div');
       div.className = 'log-entry result-final';
-      div.textContent = text;
+      // 使用 Markdown 渲染
+      div.innerHTML = renderMarkdown(text);
       body.appendChild(div);
     } else {
       const div = document.createElement('div');
@@ -690,6 +711,77 @@
 
   function escapeHtml(s) {
     return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  // 简单的 Markdown 渲染
+  function renderMarkdown(text) {
+    if (!text) return '';
+    let html = text;
+
+    // 代码块：```code```（优先处理，代码块内需要转义 HTML）
+    html = html.replace(/```(\w*)\n([\s\S]+?)```/g, (m, lang, code) => {
+      return `<pre><code class="language-${lang}">${escapeHtml(code)}</code></pre>`;
+    });
+
+    // 行内代码：`code`（在粗体/斜体之前处理，代码内需要转义）
+    html = html.replace(/`([^`]+?)`/g, (m, code) => {
+      return `<code>${escapeHtml(code)}</code>`;
+    });
+
+    // 标题：#### ~ #
+    html = html.replace(/^###### (.*$)/gm, '<h6>$1</h6>');
+    html = html.replace(/^##### (.*$)/gm, '<h5>$1</h5>');
+    html = html.replace(/^#### (.*$)/gm, '<h4>$1</h4>');
+    html = html.replace(/^### (.*$)/gm, '<h3>$1</h3>');
+    html = html.replace(/^## (.*$)/gm, '<h2>$1</h2>');
+    html = html.replace(/^# (.*$)/gm, '<h1>$1</h1>');
+
+    // 粗体：**text**
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // 斜体：*text*
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // 删除线：~~text~~
+    html = html.replace(/~~(.+?)~~/g, '<del>$1</del>');
+
+    // 链接：[text](url)
+    html = html.replace(/\[(.+?)\]\((.+?)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+
+    // 图片：![alt](url)
+    html = html.replace(/!\[(.+?)\]\((.+?)\)/g, '<img src="$2" alt="$1" style="max-width:100%">');
+
+    // 引用：> text
+    html = html.replace(/^&gt; (.*$)/gm, '<blockquote>$1</blockquote>');
+    html = html.replace(/^> (.*$)/gm, '<blockquote>$1</blockquote>');
+    html = html.replace(/<\/blockquote>\n<blockquote>/g, '');
+
+    // 列表：需要在段落处理之前
+    html = html.replace(/^- (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/^\* (.*$)/gm, '<li>$1</li>');
+    html = html.replace(/^(\d+)\. (.*$)/gm, '<li>$1. $2</li>');
+    // 将连续的 <li> 包裹在 <ul> 或 <ol> 中
+    html = html.replace(/((?:<li>[^<].*\n?)+)/g, (match) => {
+      if (match.match(/<li>\d+\./)) return `<ol>${match}</ol>`;
+      return `<ul>${match}</ul>`;
+    });
+
+    // 水平线
+    html = html.replace(/^(?:---|\*\*\*|___)\s*$/gm, '<hr>');
+
+    // 段落处理：两个换行分隔段落
+    const paragraphs = html.split(/\n\n+/);
+    html = paragraphs.map(p => {
+      p = p.trim();
+      if (!p) return '';
+      // 如果已经是块级元素，不再包裹
+      if (p.match(/^<(h[1-6]|ul|ol|li|pre|blockquote|hr)/)) return p;
+      // 将单个换行转为 <br>，同时转义普通文本中的 HTML
+      p = escapeHtml(p).replace(/\n/g, '<br>');
+      return '<p>' + p + '</p>';
+    }).join('');
+
+    return html;
   }
 
   function copyResult() {
@@ -720,13 +812,16 @@
     badge.className = `status-badge ${status || 'IDLE'}`;
     badge.textContent = { RUNNING:'进行中', COMPLETED:'已完成', ERROR:'出错', IDLE:'空闲' }[status] || status;
     document.getElementById('curSteps').textContent = steps ?? '—';
+    if (steps !== undefined && steps !== null) {
+      maxStepSeen = Math.max(maxStepSeen, steps);
+    }
 
     const bar = document.getElementById('stepsBarContainer');
     if (status === 'RUNNING') {
       bar.style.display = 'block';
-      const pct = Math.min(100, (steps / MAX_STEPS) * 100);
+      const pct = Math.min(100, (maxStepSeen / MAX_STEPS) * 100);
       document.getElementById('stepsBarFill').style.width = pct + '%';
-      document.getElementById('stepsText').textContent = `${steps} / ${MAX_STEPS}`;
+      document.getElementById('stepsText').textContent = `${maxStepSeen} / ${MAX_STEPS}`;
     } else {
       bar.style.display = 'none';
     }
@@ -858,6 +953,7 @@
     clearLog();
     setRunning(true);
     resetPlan();
+    maxStepSeen = 0;
     currentSessionId = null;
     currentTaskId = null;
     updateTaskUI(null, null, 'RUNNING', 0);
@@ -945,9 +1041,18 @@
     sseSource.addEventListener('complete', (e) => {
       try {
         const d = JSON.parse(e.data);
+        console.log('complete event received:', d);
         appendLog('任务完成', 'system');
-        if (d.result) appendLog(d.result, 'result-final');
-      } catch {}
+        if (d.result) {
+          console.log('result length:', d.result.length);
+          appendLog(d.result, 'result-final');
+        }
+        // 任务完成，关闭 SSE
+        if (sseSource) { sseSource.close(); sseSource = null; }
+      } catch (err) {
+        console.error('parse complete event error:', err);
+        appendLog('解析完成事件失败：' + err.message, 'error');
+      }
     });
 
     // 规划模式：完成事件（包含完整 plan）
@@ -987,11 +1092,9 @@
             appendLog(`计划已生成：${d.data.title}`, 'system');
           }
         } else if (d.type === 'complete') {
-          appendLog('任务完成', 'system');
-          if (d.result) appendLog(d.result, 'result-final');
+          // 已由 addEventListener('complete') 处理，不再重复
         } else if (d.type === 'plan_complete') {
-          appendLog('执行计划完成', 'system');
-          if (d.data && d.data.result) appendLog(d.data.result, 'result-final');
+          // 已由 addEventListener('plan_complete') 处理，不再重复
         } else if (d.type === 'error') {
           appendLog(`出错: ${d.message}`, 'error');
         }
@@ -1013,15 +1116,26 @@
           clearInterval(pollInterval);
           pollInterval = null;
           setRunning(false);
-          if (data.status === 'COMPLETED' && data.result) {
-            appendLog(data.result, 'result-final');
+          if (data.status === 'COMPLETED') {
+            // 事件流结束后，重新渲染完整结果
+            refreshFinalResult(data.result);
+            addSession(currentSessionId, data.result, data.status);
           }
-          addSession(currentSessionId, data.result, data.status);
           // 关闭 SSE
           if (sseSource) { sseSource.close(); sseSource = null; }
         }
       } catch {}
     }, 2000);
+  }
+
+  // ── Refresh Final Result ────────────────────────────────────────────────────
+  function refreshFinalResult(result) {
+    if (!result) return;
+    // 清空日志，重新渲染最终结果
+    clearLog();
+    appendLog('任务已完成', 'system');
+    appendLog(result, 'result-final');
+    toast('任务执行完成', 'success');
   }
 
   // ── Init ─────────────────────────────────────────────────────────────────────

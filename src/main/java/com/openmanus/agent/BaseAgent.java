@@ -117,7 +117,26 @@ public abstract class BaseAgent {
             }
         }
 
-        return String.join("\n", results);
+        // 如果子类提供了 finalResult（如 ManusAgent 的 terminate 结果），优先返回
+        String finalResult = getFinalResult();
+        log.info("[{}] getFinalResult() returned: {}", name, finalResult != null ? "not null (len=" + finalResult.length() + ")" : "null");
+        if (finalResult != null && !finalResult.isBlank()) {
+            log.info("[{}] Returning finalResult (first 100 chars): {}", name,
+                finalResult.length() > 100 ? finalResult.substring(0, 100) + "..." : finalResult);
+            return finalResult;
+        }
+
+        String joinedResults = String.join("\n", results);
+        log.info("[{}] Returning joined results (first 100 chars): {}", name,
+            joinedResults.length() > 100 ? joinedResults.substring(0, 100) + "..." : joinedResults);
+        return joinedResults;
+    }
+
+    /**
+     * 获取最终结果（可由子类覆盖返回纯净内容）
+     */
+    protected String getFinalResult() {
+        return null;
     }
 
     /**
@@ -172,7 +191,10 @@ public abstract class BaseAgent {
     protected List<ChatMessage> buildMessages() {
         List<ChatMessage> messages = new ArrayList<>();
         if (systemPrompt != null && !systemPrompt.isBlank()) {
-            messages.add(SystemMessage.from(systemPrompt));
+            // 动态注入当前日期，让 LLM 知道正确的时间
+            String currentDate = java.time.LocalDate.now().toString();
+            String datedPrompt = systemPrompt + "\n\nCURRENT DATE: " + currentDate;
+            messages.add(SystemMessage.from(datedPrompt));
         }
         messages.addAll(memory);
         return messages;

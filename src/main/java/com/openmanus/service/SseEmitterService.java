@@ -98,8 +98,17 @@ public class SseEmitterService {
 
     /** 推送完成事件 */
     public void sendComplete(String taskId, String result) {
+        log.info("[{}] sendComplete: result_len={}", taskId, result != null ? result.length() : 0);
         publish(taskId, Map.of("type", "complete", "result", result));
-        closeEmitters(taskId);
+        // 延迟关闭 emitter，确保事件已发送
+        java.util.concurrent.CompletableFuture.runAsync(() -> {
+            try {
+                Thread.sleep(500);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            closeEmitters(taskId);
+        });
     }
 
     /** 推送错误事件 */

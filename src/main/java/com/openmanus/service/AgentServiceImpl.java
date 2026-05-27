@@ -95,6 +95,8 @@ public class AgentServiceImpl implements AgentService {
 
             memoryService.saveNewMessages(sessionId, agent.getMemory(), previousMsgCount);
 
+            log.info("Task result | taskId={} | result_len={}", taskId, result != null ? result.length() : 0);
+
             run.setResult(result);
             run.setStepsTaken(agent.getCurrentStep());
             run.setStatus("COMPLETED");
